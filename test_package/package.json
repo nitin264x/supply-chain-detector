@@ -1,0 +1,10 @@
+{
+  "name": "evil-package",
+  "version": "5.0.0",
+  "author": "suspicious-new-dev",
+  "dependencies": {
+    "child_process": "^1.0.0",
+    "request": "^2.88.0",
+    "leftpad": "^1.3.0"
+  }
+}

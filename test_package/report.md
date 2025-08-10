@@ -1,0 +1,17 @@
+# 🔍 Security Scan Report
+**Date:** 2025-07-31 14:19:47
+
+## 📊 Summary
+- Static Score: `0`
+- Metadata Score: `3`
+- Final Risk Score: `3`
+
+## ⚠️ Detected Issues
+**Static Analysis:**
+- None
+
+**Metadata Analysis:**
+- uses_child_process, suspicious_version
+
+## 🧠 Risk Evaluation
+⚠️ **MODERATE RISK**: Review carefully before use.
