@@ -3,6 +3,7 @@ import sys
 from analyzers.downloader import download_and_extract_npm
 from analyzers.github_downloader import download_and_extract_github
 from analyzers.metadata_checker import run_metadata_check
+from analyzers.signature_checker import verify_with_cosign
 from analyzers.static_analyzer import run_static_analysis
 from analyzers.write_report import write_report
 
@@ -67,3 +68,8 @@ if __name__ == "__main__":
         print("  python main.py express --download")
         print("  python main.py github:vercel/next.js --download")
         print("  python main.py ./my-local-package")
+
+    sig_result = None
+    if package_path.startswith("github:") or package_path.startswith("docker:"):
+        sig_result = verify_with_cosign(package_path)
+        
