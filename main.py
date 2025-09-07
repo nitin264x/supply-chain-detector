@@ -1,4 +1,5 @@
 import sys
+from typing import Optional
 
 from analyzers.downloader import download_and_extract_npm
 from analyzers.github_downloader import download_and_extract_github
@@ -8,11 +9,49 @@ from analyzers.static_analyzer import run_static_analysis
 from analyzers.write_report import write_report
 
 
-def main(package_path):
+def parse_args(argv):
+    target: Optional[str] = None
+    download = False
+    report_format = "md"  # md | json | both
+    fail_on: Optional[int] = None
+
+    i = 1
+    while i < len(argv):
+        arg = argv[i]
+        if target is None and not arg.startswith("--"):
+            target = arg
+            i += 1
+            continue
+        if arg == "--download":
+            download = True
+            i += 1
+            continue
+        if arg.startswith("--format="):
+            report_format = arg.split("=", 1)[1]
+            i += 1
+            continue
+        if arg.startswith("--fail-on="):
+            try:
+                fail_on = int(arg.split("=", 1)[1])
+            except:
+                print("❌ --fail-on must be an integer score (e.g., --fail-on=4)")
+                sys.exit(2)
+            i += 1
+            continue
+        # skip unknown flags gracefully
+        i += 1
+
+    return target, download, report_format, fail_on
+
+
+def main(package_path, report_format: str = "md", fail_on: Optional[int] = None):
     print("🤖 Scanning:", package_path)
 
     static_result = run_static_analysis(package_path)
     metadata_result = run_metadata_check(package_path)
+    sig_result = None
+    if str(package_path).startswith("github:") or str(package_path).startswith("docker:"):
+        sig_result = verify_with_cosign(package_path)
 
     print("\n== Report ==")
     print(f"📊 Static Score: {static_result['score']}")
@@ -28,48 +67,43 @@ def main(package_path):
     else:
         print("✅ RISK: LOW")
 
-    write_report(static_result, metadata_result, total, package_path)
+    write_report(static_result, metadata_result, total, package_path, sig_result=sig_result, format=report_format)
+
+    if fail_on is not None and total >= fail_on:
+        print(f"❌ Exiting with failure because total score {total} >= fail-on {fail_on}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
     print("📦 Starting robot...")
     print("Args:", sys.argv)
 
-    if len(sys.argv) > 1:
-        target = sys.argv[1]
+    target, download, report_format, fail_on = parse_args(sys.argv)
 
-        # --download used?
-        if len(sys.argv) > 2 and sys.argv[2] == "--download":
-            if ":" in target:
-                source, name = target.split(":", 1)
-
-                if source == "npm":
-                    package_path = download_and_extract_npm(name)
-
-                elif source == "github":
-                    package_path = download_and_extract_github(name)
-
-                else:
-                    print(f"❌ Unknown source: {source}")
-                    sys.exit(1)
-            else:
-                # Default to NPM if no source prefix
-                package_path = download_and_extract_npm(target)
-        else:
-            # If not downloading, assume it's a local path
-            package_path = target
-
-        # Run scanner
-        main(package_path)
-
-    else:
+    if not target:
         print("❌ No package path or source given.")
         print("Usage examples:")
-        print("  python main.py express --download")
-        print("  python main.py github:vercel/next.js --download")
-        print("  python main.py ./my-local-package")
+        print("  python main.py express --download --format=both --fail-on=4")
+        print("  python main.py github:vercel/next.js --download --format=json")
+        print("  python main.py ./my-local-package --format=md")
+        sys.exit(2)
 
-    sig_result = None
-    if package_path.startswith("github:") or package_path.startswith("docker:"):
-        sig_result = verify_with_cosign(package_path)
-        
+    if download:
+        if ":" in target:
+            source, name = target.split(":", 1)
+            if source == "npm":
+                package_path = download_and_extract_npm(name)
+            elif source == "github":
+                package_path = download_and_extract_github(name)
+            else:
+                print(f"❌ Unknown source: {source}")
+                sys.exit(1)
+        else:
+            # Default to NPM if no source prefix
+            package_path = download_and_extract_npm(target)
+    else:
+        # If not downloading, assume it's a local path
+        package_path = target
+
+    # Run scanner
+    main(package_path, report_format=report_format, fail_on=fail_on)

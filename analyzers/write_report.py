@@ -1,8 +1,9 @@
 import os
+import json
 from datetime import datetime
 
 
-def write_report(static_result, metadata_result, total_score, package_path, sig_result=None):
+def write_report(static_result, metadata_result, total_score, package_path, sig_result=None, format: str = "md"):
     """
     Writes a markdown report for the scan results.
     static_result: dict from static analyzer
@@ -19,8 +20,9 @@ def write_report(static_result, metadata_result, total_score, package_path, sig_
     # Normalize package path for filename safety
     safe_package_name = os.path.basename(os.path.normpath(package_path))
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    report_filename = f"{safe_package_name}_{timestamp}.md"
-    report_path = os.path.join(report_dir, report_filename)
+    base_filename = f"{safe_package_name}_{timestamp}"
+    report_md_path = os.path.join(report_dir, f"{base_filename}.md")
+    report_json_path = os.path.join(report_dir, f"{base_filename}.json")
 
     report_lines = []
     report_lines.append(f"# 📦 Supply Chain Risk Report for `{package_path}`\n")
@@ -63,8 +65,37 @@ def write_report(static_result, metadata_result, total_score, package_path, sig_
     report_lines.append(f"**RISK LEVEL:** {risk_level}")
     report_lines.append("")
 
-    # Save report
-    with open(report_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(report_lines))
-    
-    print(f"📝 Report saved to: {report_path}")
+    saved_paths = []
+
+    # Save markdown if requested
+    if format in ("md", "both"):
+        with open(report_md_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(report_lines))
+        saved_paths.append(report_md_path)
+
+    # Save JSON if requested
+    if format in ("json", "both"):
+        json_payload = {
+            "target": package_path,
+            "scores": {
+                "static": static_result.get("score", 0),
+                "metadata": metadata_result.get("score", 0),
+                "total": total_score,
+            },
+            "findings": {
+                "static": static_result.get("issues", []),
+                "metadata": metadata_result.get("issues", []),
+            },
+            "signature": sig_result if sig_result is not None else {"verified": None},
+            "risk_level": ("HIGH" if total_score >= 7 else ("MEDIUM" if total_score >= 4 else "LOW")),
+            "generated_at": timestamp,
+        }
+        with open(report_json_path, "w", encoding="utf-8") as jf:
+            json.dump(json_payload, jf, ensure_ascii=False, indent=2)
+        saved_paths.append(report_json_path)
+
+    for p in saved_paths:
+        print(f"📝 Report saved to: {p}")
+
+    # Return first path for convenience
+    return saved_paths[0] if saved_paths else None
