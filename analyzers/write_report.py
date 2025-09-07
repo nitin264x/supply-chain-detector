@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 
 
-def write_report(static_result, metadata_result, total_score, package_path, sig_result=None, secrets_result=None, format: str = "md"):
+def write_report(static_result, metadata_result, total_score, package_path, sig_result=None, secrets_result=None, sbom_result=None, lockfile_result=None, typo_result=None, format: str = "md"):
     """
     Writes a markdown report for the scan results.
     static_result: dict from static analyzer
@@ -60,6 +60,55 @@ def write_report(static_result, metadata_result, total_score, package_path, sig_
             report_lines.append("**Findings:** None")
     report_lines.append("")
 
+    # SBOM & License Section (Addon)
+    report_lines.append("## 🧾 SBOM & License")
+    if sbom_result is None:
+        report_lines.append("ℹ️ SBOM not generated.")
+    else:
+        report_lines.append(f"**Declared License:** {sbom_result.get('license', 'UNKNOWN')}")
+        sbom_issues = sbom_result.get("issues", [])
+        report_lines.append(f"**Issues:** {', '.join(sbom_issues) if sbom_issues else 'None'}")
+        components = sbom_result.get("components", [])
+        report_lines.append(f"**Direct Dependencies:** {len(components)}")
+    report_lines.append("")
+
+    # Lockfile & Scripts Section (Addon)
+    report_lines.append("## 📄 Lockfile & Scripts")
+    if lockfile_result is None:
+        report_lines.append("ℹ️ Lockfile/scripts check not run.")
+    else:
+        report_lines.append(f"**Lockfile/Scripts Score:** {lockfile_result.get('score', 0)}")
+        lf_issues = lockfile_result.get("issues", [])
+        if lf_issues:
+            # Summarize by type counts
+            type_counts = {}
+            for f in lf_issues:
+                t = f.get("type", "unknown")
+                type_counts[t] = type_counts.get(t, 0) + 1
+            summary = ", ".join(f"{k}: {v}" for k, v in type_counts.items())
+            report_lines.append(f"**Findings:** {summary}")
+        else:
+            report_lines.append("**Findings:** None")
+    report_lines.append("")
+
+    # Typosquatting & Maintainer Section (Addon)
+    report_lines.append("## 🔤 Typosquatting & Maintainers")
+    if typo_result is None:
+        report_lines.append("ℹ️ Typosquatting/maintainer check not run.")
+    else:
+        report_lines.append(f"**Typo/Maintainer Score:** {typo_result.get('score', 0)}")
+        t_issues = typo_result.get("issues", [])
+        if t_issues:
+            type_counts = {}
+            for f in t_issues:
+                t = f.get("type", "unknown")
+                type_counts[t] = type_counts.get(t, 0) + 1
+            summary = ", ".join(f"{k}: {v}" for k, v in type_counts.items())
+            report_lines.append(f"**Findings:** {summary}")
+        else:
+            report_lines.append("**Findings:** None")
+    report_lines.append("")
+
     # Signature Verification Section (Week 3)
     report_lines.append("## 🔐 Signature Verification")
     if sig_result is None:
@@ -105,6 +154,14 @@ def write_report(static_result, metadata_result, total_score, package_path, sig_
                 "static": static_result.get("issues", []),
                 "metadata": metadata_result.get("issues", []),
                 "secrets": (secrets_result.get("issues", []) if secrets_result else []),
+                "sbom": (sbom_result.get("issues", []) if sbom_result else []),
+                "lockfile": (lockfile_result.get("issues", []) if lockfile_result else []),
+                "typo": (typo_result.get("issues", []) if typo_result else []),
+            },
+            "sbom": {
+                "license": (sbom_result.get("license") if sbom_result else None),
+                "components_count": (len(sbom_result.get("components", [])) if sbom_result else 0),
+                "components": (sbom_result.get("components", []) if sbom_result else []),
             },
             "signature": sig_result if sig_result is not None else {"verified": None},
             "risk_level": ("HIGH" if total_score >= 7 else ("MEDIUM" if total_score >= 4 else "LOW")),
