@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 
 
-def write_report(static_result, metadata_result, total_score, package_path, sig_result=None, format: str = "md"):
+def write_report(static_result, metadata_result, total_score, package_path, sig_result=None, secrets_result=None, format: str = "md"):
     """
     Writes a markdown report for the scan results.
     static_result: dict from static analyzer
@@ -39,6 +39,25 @@ def write_report(static_result, metadata_result, total_score, package_path, sig_
     report_lines.append(f"**Metadata Score:** {metadata_result.get('score', 0)}")
     meta_issues = metadata_result.get("issues", [])
     report_lines.append(f"**Issues Found:** {', '.join(meta_issues) if meta_issues else 'None'}")
+    report_lines.append("")
+
+    # Secrets Scan Section (Addon)
+    report_lines.append("## 🔑 Secrets Scan")
+    if secrets_result is None:
+        report_lines.append("ℹ️ Secrets scan not run.")
+    else:
+        report_lines.append(f"**Secrets Score:** {secrets_result.get('score', 0)}")
+        secrets_issues = secrets_result.get("issues", [])
+        if secrets_issues:
+            # Show a compact list of types and counts
+            type_counts = {}
+            for f in secrets_issues:
+                t = f.get("type", "unknown")
+                type_counts[t] = type_counts.get(t, 0) + 1
+            summary = ", ".join(f"{k}: {v}" for k, v in type_counts.items())
+            report_lines.append(f"**Findings:** {summary}")
+        else:
+            report_lines.append("**Findings:** None")
     report_lines.append("")
 
     # Signature Verification Section (Week 3)
@@ -85,6 +104,7 @@ def write_report(static_result, metadata_result, total_score, package_path, sig_
             "findings": {
                 "static": static_result.get("issues", []),
                 "metadata": metadata_result.get("issues", []),
+                "secrets": (secrets_result.get("issues", []) if secrets_result else []),
             },
             "signature": sig_result if sig_result is not None else {"verified": None},
             "risk_level": ("HIGH" if total_score >= 7 else ("MEDIUM" if total_score >= 4 else "LOW")),
