@@ -8,6 +8,9 @@ from analyzers.signature_checker import verify_with_cosign
 from analyzers.static_analyzer import run_static_analysis
 from analyzers.write_report import write_report
 from analyzers.secrets_scanner import run_secrets_scan
+from analyzers.sbom import generate_sbom
+from analyzers.lockfile_checker import run_lockfile_and_scripts_check
+from analyzers.typo_checker import run_typo_and_maintainer_check
 
 
 def parse_args(argv):
@@ -51,6 +54,9 @@ def main(package_path, report_format: str = "md", fail_on: Optional[int] = None)
     static_result = run_static_analysis(package_path)
     metadata_result = run_metadata_check(package_path)
     secrets_result = run_secrets_scan(package_path)
+    sbom_result = generate_sbom(package_path)
+    lockfile_result = run_lockfile_and_scripts_check(package_path)
+    typo_result = run_typo_and_maintainer_check(package_path)
     sig_result = None
     if str(package_path).startswith("github:") or str(package_path).startswith("docker:"):
         sig_result = verify_with_cosign(package_path)
@@ -60,7 +66,14 @@ def main(package_path, report_format: str = "md", fail_on: Optional[int] = None)
     print(f"📋 Metadata Score: {metadata_result['score']}")
     print(f"⚠️  Issues: {metadata_result['issues']}")
 
-    total = static_result["score"] + metadata_result["score"] + secrets_result["score"]
+    total = (
+        static_result["score"]
+        + metadata_result["score"]
+        + secrets_result["score"]
+        + sbom_result["score"]
+        + lockfile_result["score"]
+        + typo_result["score"]
+    )
     print(f"🧮 Final Risk Score: {total}")
     if total >= 5:
         print("🚨 RISK: HIGH")
@@ -76,6 +89,9 @@ def main(package_path, report_format: str = "md", fail_on: Optional[int] = None)
         package_path,
         sig_result=sig_result,
         secrets_result=secrets_result,
+        sbom_result=sbom_result,
+        lockfile_result=lockfile_result,
+        typo_result=typo_result,
         format=report_format,
     )
 
